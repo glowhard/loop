@@ -1,14 +1,77 @@
 # Loop
 
-A Windows control room for Claude Code sessions. Workspaces hold projects, projects hold sessions, and every session opens as a real terminal at its project folder, already resumed.
+**A control room for Claude Code.** Run many Claude Code sessions side by side on Windows, give them roles and a shared memory, and follow or steer them from your phone, including by voice with the screen off.
 
-## Run
+[![test](https://github.com/gursewak8427/loop/actions/workflows/test.yml/badge.svg)](https://github.com/gursewak8427/loop/actions/workflows/test.yml)
+[![MIT license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-- Packaged app: `release\win-unpacked\Loop.exe` (the Desktop and Start Menu shortcuts point here).
-- From source: `npm install`, then `npm start`.
-- After changing code: close the app, then `npm run pack`.
-- Installer for another PC: `npm run dist` writes `release\Loop Setup <version>.exe`.
-- Tests: `npm test`.
+<p align="center">
+  <img src="docs/screenshots/phone-home.png" width="260" alt="Home on the phone: a plan from the CEO waiting for an OK, and a finished report from the CTO">
+  &nbsp;
+  <img src="docs/screenshots/phone-chat.png" width="260" alt="A session's conversation on the phone, with the tools it used folded into one line">
+  &nbsp;
+  <img src="docs/screenshots/phone-voice.png" width="260" alt="Voice mode: the phone listening, showing the words as they are heard">
+</p>
+
+<p align="center"><sub>The phone app, drawn from the code with made-up data (<code>npm run screenshots</code>).</sub></p>
+
+## Why
+
+Claude Code is one terminal and one conversation. Real work quickly turns into five of them: a backend session, a frontend one, one on a server, one reviewing. Loop is the window that holds them all.
+
+- **Every session, organised.** Workspaces hold projects, projects hold sessions. Each one opens as a real terminal at its project folder, already resumed. Live lamps show which are working, idle or stopped.
+- **Sessions that work as a team.** Give each a role (CEO, CTO, developer, QA...). They get a shared memory, a task board and a way to message each other, so you give one goal and the work is passed along.
+- **Your phone as the remote.** Over your own Tailscale network: read any session as a conversation, answer the questions Claude asks, approve a plan, send a photo.
+- **Voice mode.** Open a session on the phone, tap the waveform button and talk. Loop sends what you said, waits for the answer, reads it out in a sentence or two, and listens again. It is built for working with your eyes closed.
+- **Servers too.** A session can run on another machine over SSH, inside `tmux`, so it keeps working when you close everything.
+- **Several Claude accounts.** Pick one per workspace, project or session, and switch a running session to another when one runs out.
+
+## Requirements
+
+- Windows 10 or 11.
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed and signed in (`claude` on your `PATH`).
+- For the phone: [Tailscale](https://tailscale.com) on the PC and the phone. For voice mode in a phone browser, turn on MagicDNS and HTTPS certificates for your tailnet, because a browser only gives a page the microphone over HTTPS.
+
+## Install
+
+Download the Windows installer from [Releases](https://github.com/gursewak8427/loop/releases). It is not code-signed yet, so Windows SmartScreen will warn you the first time: choose **More info → Run anyway**.
+
+Or build it yourself (Node 24 and the [Flutter](https://flutter.dev) SDK, stable channel):
+
+```
+npm ci
+npm run web      # builds the phone app that Loop serves to your phone
+npm start        # runs Loop from source
+```
+
+`npm run pack` builds the app into `release\win-unpacked\Loop.exe`, and `npm run dist` builds an installer.
+
+## Use it from your phone
+
+1. In Loop, open **Your phone** and turn it on. It shows an address, a port and a pairing code.
+2. On the phone, open the address in Chrome, or install the app (see [app/README.md](app/README.md) for Android and iPhone).
+3. Enter the pairing code once.
+
+Use the Tailscale address (it starts with `100.`) and it works from anywhere. For voice mode in the browser, use the `https://<your-pc>.<tailnet>.ts.net:8788` address that Loop shows.
+
+Loop gives whoever pairs full control of your sessions. Keep it on your private Tailscale network and never forward its ports to the internet.
+
+## Contributing
+
+Contributions are welcome, from a typo to a feature. Start with [CONTRIBUTING.md](CONTRIBUTING.md), and see the issues labelled [good first issue](https://github.com/gursewak8427/loop/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22).
+
+## License
+
+[MIT](LICENSE) © Prismaple
+
+---
+
+# Reference
+
+The rest of this page describes each part of Loop in detail.
+
+- Tests: `npm test` (desktop), and `cd app && flutter test` (phone).
+- After changing desktop code: close the app, then `npm run pack`.
 
 ## What it does
 
@@ -65,7 +128,7 @@ The main account is the Claude Code login already on this PC. Add more from the 
 - **Out of usage on one account**: right-click the tab, choose Switch account. The session restarts under the other login at the same point in the conversation.
 - **Two accounts at once**: nothing to set up; every terminal carries its own account.
 
-Each extra account is a Claude Code config folder under `%APPDATA%Loopaccounts`. It holds that account's login and nothing else of its own: session history, the live session list, plugins and skills are links to `~/.claude`, and settings, `CLAUDE.md` and MCP servers are copied from it at every launch. So change settings in your main setup; a change made while running under an extra account is overwritten. Connector sign-ins (the MCP servers and plugins you authorised, such as GitHub or Vercel) are kept the same under every account: whichever copy is freshest is given to all of them, at start and whenever one changes. Connectors that live on claude.ai itself belong to each Claude account and have to be connected there once per account. Removing an account signs it out and deletes its folder; sessions are untouched. Claude Desktop keeps its own login and is not affected.
+Each extra account is a Claude Code config folder under `%APPDATA%\Loop\accounts`. It holds that account's login and nothing else of its own: session history, the live session list, plugins and skills are links to `~/.claude`, and settings, `CLAUDE.md` and MCP servers are copied from it at every launch. So change settings in your main setup; a change made while running under an extra account is overwritten. Connector sign-ins (the MCP servers and plugins you authorised, such as GitHub or Vercel) are kept the same under every account: whichever copy is freshest is given to all of them, at start and whenever one changes. Connectors that live on claude.ai itself belong to each Claude account and have to be connected there once per account. Removing an account signs it out and deletes its folder; sessions are untouched. Claude Desktop keeps its own login and is not affected.
 
 ## Deleting a session
 
@@ -122,7 +185,7 @@ Notes that Claude Code saved on its own for a project (`~/.claude/projects/<proj
 ## Data
 
 - `%APPDATA%\Loop\config.json`: workspaces, teams, roles, hidden and pinned items, settings.
-- `%APPDATA%Loopaccounts`: one folder per extra Claude account.
+- `%APPDATA%\Loop\accounts`: one folder per extra Claude account.
 - Nothing under `~/.claude` is modified by the app itself, with one exception: when a session is opened with its Remote Control switch off but its history still points at a remote copy, the app appends the same one-line "disconnected" record Claude Code writes itself. Sessions running under an extra account write their history there, as they would under the main one.
 
 ## Code

@@ -4,7 +4,7 @@ on:
     branches: [main]
   pull_request:
 jobs:
-  test:
+  desktop:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -14,3 +14,19 @@ jobs:
       # The relay tests need ws. Scripts are skipped: Electron's download is not needed to test.
       - run: npm ci --ignore-scripts
       - run: npm test
+
+  # The phone app is half of Loop, so a change to it is checked as well.
+  phone:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+        working-directory: app
+      - run: flutter analyze
+        working-directory: app
+      - run: flutter test
+        working-directory: app
