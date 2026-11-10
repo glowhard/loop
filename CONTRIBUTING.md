@@ -24,6 +24,8 @@ npm start        # runs Loop from source
 
 Loop keeps its settings in `%APPDATA%\Loop`. To try a change without touching your own setup, start it with a scratch folder: `set SD_USERDATA=%TEMP%\loop-dev` before `npm start`.
 
+To work on Loop without real Claude Code sessions, `npm run demo` starts it on made-up projects and sessions in a temp folder, which is removed when Loop closes. Opening a session there replays its made-up conversation; no Claude Code runs. `npm run demo -- --shot desktop.png` saves a screenshot and quits, which is how `docs/screenshots/desktop.png` is made.
+
 ## How the code is laid out
 
 | Where | What |
