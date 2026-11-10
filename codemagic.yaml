@@ -1,0 +1,68 @@
+# Codemagic builds the Loop phone app.
+#
+# Attach this repository in Codemagic, pick a workflow and press Start. Nothing
+# is published anywhere: each build leaves a file under Artifacts for you to
+# download.
+#
+#   loop-iphone   an unsigned .ipa, to sign with your own Apple ID on your PC
+#   loop-android  an .apk that installs as it is
+#
+# The iPhone build needs no Apple account at all, because it is not signed here.
+# You sign it when you install it (Sideloadly on Windows, free Apple ID, seven
+# days per signature). To get a longer-lived build instead, add your Apple
+# Developer account under Codemagic's code signing and the ipa comes out signed.
+
+definitions:
+  flutter_app: &flutter_app
+    working_directory: app
+    flutter: stable
+
+workflows:
+  loop-iphone:
+    name: Loop for iPhone (unsigned ipa)
+    instance_type: mac_mini_m2
+    max_build_duration: 45
+    environment:
+      <<: *flutter_app
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: Fetch packages
+        working_directory: app
+        script: flutter pub get
+      - name: Check the code
+        working_directory: app
+        script: flutter analyze
+      - name: Build without signing
+        working_directory: app
+        script: flutter build ios --release --no-codesign
+      - name: Wrap it as an ipa
+        working_directory: app
+        script: |
+          mkdir -p Payload
+          cp -R build/ios/iphoneos/Runner.app Payload/
+          zip -qry Loop.ipa Payload
+          echo "Loop.ipa is $(du -h Loop.ipa | cut -f1)"
+    artifacts:
+      - app/Loop.ipa
+      - app/build/ios/iphoneos/Runner.app
+
+  loop-android:
+    name: Loop for Android (apk)
+    instance_type: linux_x2
+    max_build_duration: 30
+    environment:
+      <<: *flutter_app
+      java: 17
+    scripts:
+      - name: Fetch packages
+        working_directory: app
+        script: flutter pub get
+      - name: Check the code
+        working_directory: app
+        script: flutter analyze
+      - name: Build the apk
+        working_directory: app
+        script: flutter build apk --release
+    artifacts:
+      - app/build/app/outputs/flutter-apk/app-release.apk

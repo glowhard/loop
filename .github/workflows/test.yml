@@ -1,0 +1,16 @@
+name: test
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      # The relay tests need ws. Scripts are skipped: Electron's download is not needed to test.
+      - run: npm ci --ignore-scripts
+      - run: npm test

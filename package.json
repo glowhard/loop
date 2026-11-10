@@ -1,0 +1,70 @@
+{
+  "name": "loop",
+  "productName": "Loop",
+  "version": "0.1.0",
+  "description": "Workspace-based control room for Claude Code sessions",
+  "main": "src/main/main.js",
+  "author": "Prismaple",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/memory.test.js test/scanner.test.js test/server.test.js test/accounts.test.js test/launch.test.js test/remote.test.js test/servers.test.js test/board.test.js test/direct.test.js test/tasks.test.js test/trash.test.js test/phone.test.js test/relay.test.js test/rules.test.js test/remote-switch.test.js test/gate.test.js test/localtools.test.js test/whatsapp.test.js test/subs.test.js test/voice.test.js test/voice-flow.test.js test/renderer.test.js",
+    "icon": "python scripts/make-icon.py",
+    "pack": "electron-builder --win dir",
+    "predist": "npm run web",
+    "dist": "electron-builder --win nsis --config.win.target=nsis --config.nsis.oneClick=false --config.nsis.perMachine=false",
+    "web:hosted": "cd app && flutter build web --release --pwa-strategy=none --base-href=/ --dart-define=LOOP_HOSTED=true && cd .. && node -e \"const f=require('fs');f.rmSync('hosted',{recursive:true,force:true});f.cpSync('app/build/web','hosted',{recursive:true});f.rmSync('hosted/canvaskit',{recursive:true,force:true})\"",
+    "web": "cd app && flutter build web --release --pwa-strategy=none && cd .. && node -e \"require('fs').rmSync('src/web',{recursive:true,force:true});const f=require('fs');f.cpSync('app/build/web','src/web',{recursive:true});f.rmSync('src/web/canvaskit',{recursive:true,force:true})\""
+  },
+  "build": {
+    "appId": "com.prismaple.loop",
+    "copyright": "Copyright © Prismaple",
+    "productName": "Loop",
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "node_modules/@lydell/**",
+      "src/main/voice-host.js",
+      "node_modules/kokoro-js/**",
+      "node_modules/@huggingface/**",
+      "node_modules/onnxruntime-node/**",
+      "node_modules/onnxruntime-common/**",
+      "node_modules/sharp/**",
+      "node_modules/@img/**"
+    ],
+    "npmRebuild": false,
+    "win": {
+      "target": "dir",
+      "icon": "assets/icon.ico",
+      "signExecutable": false
+    },
+    "directories": {
+      "output": "release"
+    }
+  },
+  "dependencies": {
+    "@huggingface/transformers": "^3.7.5",
+    "@lydell/node-pty": "^1.2.0-beta.15",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/addon-serialize": "^0.14.0",
+    "@xterm/addon-unicode11": "^0.9.0",
+    "@xterm/addon-web-links": "^0.12.0",
+    "@xterm/addon-webgl": "^0.19.0",
+    "@xterm/xterm": "^6.0.0",
+    "kokoro-js": "^1.2.1",
+    "ws": "^8.22.0"
+  },
+  "devDependencies": {
+    "electron": "^44.7.0",
+    "electron-builder": "^26.15.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gursewak8427/loop.git"
+  }
+}

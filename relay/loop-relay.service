@@ -1,0 +1,21 @@
+[Unit]
+Description=Loop relay
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/node /srv/loop-app/relay/relay.js
+Environment=PORT=8790
+Environment=LOOP_RELAY_CONFIG=/etc/loop-relay.json
+Restart=always
+RestartSec=2
+User=root
+WorkingDirectory=/srv/loop-app/relay
+# It needs nothing of the machine beyond its own folder and the network.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/tmp
+
+[Install]
+WantedBy=multi-user.target

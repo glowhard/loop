@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <!--
+    If you are serving your web app in a path other than the root, change the
+    href value below to reflect the base path you are serving from.
+
+    The path provided below has to start and end with a slash "/" in order for
+    it to work correctly.
+
+    For more details:
+    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
+
+    This is a placeholder for base href that will be replaced by the value of
+    the `--base-href` argument provided to `flutter build`.
+  -->
+  <base href="$FLUTTER_BASE_HREF">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="description" content="A new Flutter project.">
+
+  <!-- iOS meta tags & icons -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="loop_app">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <title>loop_app</title>
+  <link rel="manifest" href="manifest.json">
+</head>
+<body>
+  <script>
+    // Voice mode is a conversation with the screen untouched, and a phone
+    // locks its screen after half a minute of that - which stops the
+    // listening and the voice with it. The browser will hold the screen awake
+    // while the page is in front, and hands it back the moment it is not.
+    // Only Chrome and Safari have this, and only over https or on this PC, so
+    // every step of it is allowed to fail quietly.
+    (function () {
+      var held = null;
+      async function hold() {
+        try {
+          if (!('wakeLock' in navigator) || held || document.visibilityState !== 'visible') return;
+          held = await navigator.wakeLock.request('screen');
+          held.addEventListener('release', function () { held = null; });
+        } catch (e) {
+          held = null;
+        }
+      }
+      // A wake lock is only given after the page has been touched once.
+      window.addEventListener('pointerdown', hold, { once: false });
+      document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState === 'visible') hold();
+      });
+    })();
+  </script>
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>
