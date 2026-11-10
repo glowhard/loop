@@ -1313,12 +1313,15 @@ function createTab(o, activateIt = true) {
   term.attachCustomKeyEventHandler((e) => {
     if (e.type !== 'keydown') return true;
     const ctrl = e.ctrlKey && !e.altKey;
-    if (ctrl && e.code === 'KeyC' && (e.shiftKey || term.hasSelection())) {
+    // On a Mac copy and paste are Cmd, and Ctrl+C is left to interrupt, as in Terminal.
+    const clip = deck.platform === 'darwin' ? e.metaKey && !e.altKey && !e.ctrlKey : ctrl;
+    if (clip && e.code === 'KeyC' && (e.shiftKey || term.hasSelection())) {
+      e.preventDefault();
       deck.clipWrite(term.getSelection());
       term.clearSelection();
       return false;
     }
-    if (ctrl && e.code === 'KeyV') {
+    if (clip && e.code === 'KeyV') {
       e.preventDefault();
       // No text on the clipboard usually means an image: let Claude fetch it.
       deck.clipRead().then((text) => (text ? term.paste(text) : deck.write(id, '\x16')));
@@ -2808,7 +2811,13 @@ window.addEventListener('focus', () => {
 });
 
 (async function init() {
-  const state = await deck.load();
+  const loading = deck.load();
+
+  // What follows calls into layout.js, servers.js and the files after them, which
+  // load after this one. A fast answer above (an extra window gets one) used to beat them.
+  if (document.readyState === 'loading') await new Promise((r) => document.addEventListener('DOMContentLoaded', r, { once: true }));
+
+  const state = await loading;
   S.config = state.config;
   S.local = state.projects;
   S.projects = state.projects;
@@ -2817,6 +2826,7 @@ window.addEventListener('focus', () => {
   S.winId = state.winId;
   S.child = state.child;
   document.body.classList.toggle('child', S.child);
+  document.body.classList.toggle('mac', deck.platform === 'darwin');
   if (S.child) S.config.layout = 'focus';
   S.memoryRoot = state.memoryRoot;
   S.live = new Map(state.live.map((l) => [l.sessionId, l]));

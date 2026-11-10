@@ -9,6 +9,7 @@ const os = require('os');
 const path = require('path');
 const { spawn, execFile } = require('child_process');
 const { UUID_RE } = require('./scanner');
+const { shellArg } = require('./shell');
 
 const SYSTEM_SSH = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'OpenSSH', 'ssh.exe');
 const SSH = fs.existsSync(SYSTEM_SSH) ? SYSTEM_SSH : 'ssh';
@@ -374,22 +375,24 @@ const isRoot = (s) => (s.runAs ? s.runAs === 'root' : ((state.get(s.id) || {}).s
 
 const tmuxName = (sessionId) => 'loop-' + sessionId.slice(0, 13);
 
-// The command a tab runs on this PC to work on the server. It is handed to cmd
-// inside double quotes, so the part for the server uses single quotes only.
-function tabCommand(s, o, settings) {
+// The command a tab runs on this PC to work on the server. The part for the
+// server is one argument: inside double quotes for cmd, so it uses single quotes
+// only, and inside single quotes for a POSIX shell, so $ is left to the server.
+function tabCommand(s, o, settings, platform = process.platform) {
+  const arg = (script) => shellArg(script, platform);
   const exe = SSH === 'ssh' ? 'ssh' : `"${SSH}"`;
   const path$ = 'export PATH=$HOME/.local/bin:$HOME/bin:/usr/local/bin:$PATH';
   const ssh = `${exe} -t ${sshArgs(s, true)
     .map((a) => (/[\s"]/.test(a) ? `"${a.replace(/"/g, '')}"` : a))
     .join(' ')} ${target(s)}`;
   const where = o.cwd && /^[^'"\r\n%!]+$/.test(o.cwd) ? o.cwd : '';
-  if (o.kind === 'login') return `${ssh} "${asUser(s, `${path$}; claude auth login`)}"`;
+  if (o.kind === 'login') return `${ssh} ${arg(asUser(s, `${path$}; claude auth login`))}`;
   // Anthropic's own installer; it puts Claude Code in the user's home folder and leaves a shell open to read the result.
   if (o.kind === 'install')
-    return `${ssh} "${asUser(s, `${path$}; cd; curl -fsSL https://claude.ai/install.sh | bash; echo; echo Finished. Close this tab, then sign in.; exec $SHELL -l`)}"`;
+    return `${ssh} ${arg(asUser(s, `${path$}; cd; curl -fsSL https://claude.ai/install.sh | bash; echo; echo Finished. Close this tab, then sign in.; exec $SHELL -l`))}`;
   if (o.kind === 'shell') {
-    if (where) return `${ssh} "${asUser(s, `cd ${quote(where)} 2>/dev/null; exec $SHELL -l`)}"`;
-    return s.runAs ? `${ssh} "${asUser(s, 'cd; exec $SHELL -l')}"` : ssh;
+    if (where) return `${ssh} ${arg(asUser(s, `cd ${quote(where)} 2>/dev/null; exec $SHELL -l`))}`;
+    return s.runAs ? `${ssh} ${arg(asUser(s, 'cd; exec $SHELL -l'))}` : ssh;
   }
   if (!UUID_RE.test(o.sessionId || '')) throw new Error('Invalid session id');
   let flags = String(settings.flags || '').replace(/['"%!\r\n;&|<>`$\\]/g, '');
@@ -417,7 +420,7 @@ function tabCommand(s, o, settings) {
   // With tmux the session outlives this connection; opening the tab again reattaches to it.
   // The clipboard options let a copy made in the session reach this PC's clipboard.
   const inTmux = `tmux has-session -t ${t} 2>/dev/null || tmux -u new-session -d -s ${t} -x 200 -y 50 ${quote(held)}; tmux set-option -t ${t} status off >/dev/null 2>&1; tmux set-option -t ${t} mouse on >/dev/null 2>&1; tmux set-option -s set-clipboard on >/dev/null 2>&1; tmux set-option -t ${t} allow-passthrough on >/dev/null 2>&1; exec tmux -u attach -t ${t}`;
-  return `${ssh} "${asUser(s, `${path$}; ${cd}if command -v tmux >/dev/null 2>&1; then ${inTmux}; else exec ${claude}; fi`)}"`;
+  return `${ssh} ${arg(asUser(s, `${path$}; ${cd}if command -v tmux >/dev/null 2>&1; then ${inTmux}; else exec ${claude}; fi`))}`;
 }
 
 // `asLogin` runs it as whoever SSH logs in as, not as the user chosen for sessions.
