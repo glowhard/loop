@@ -4,6 +4,7 @@ const { contextBridge, ipcRenderer, webUtils } = require('electron');
 const on = (channel) => (cb) => ipcRenderer.on(channel, (_e, ...args) => cb(...args));
 
 contextBridge.exposeInMainWorld('deck', {
+  platform: process.platform,
   load: () => ipcRenderer.invoke('state:load'),
   scan: () => ipcRenderer.invoke('scan'),
   saveConfig: (config) => ipcRenderer.send('config:save', config),

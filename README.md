@@ -34,7 +34,7 @@ Claude Code is one terminal and one conversation. Real work quickly turns into f
 
 ## Requirements
 
-- Windows 10 or 11.
+- Windows 10 or 11. macOS runs from source (see [CONTRIBUTING.md](CONTRIBUTING.md)); Linux should too, but is untested.
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed and signed in (`claude` on your `PATH`).
 - For the phone: [Tailscale](https://tailscale.com) on the PC and the phone. For voice mode in a phone browser, turn on MagicDNS and HTTPS certificates for your tailnet, because a browser only gives a page the microphone over HTTPS.
 

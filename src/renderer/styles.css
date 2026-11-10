@@ -143,6 +143,10 @@ svg.ic {
   -webkit-app-region: drag;
   border-bottom: 1px solid var(--line);
 }
+/* On a Mac the window buttons are on the left. */
+body.mac #titlebar {
+  padding: 0 14px 0 86px;
+}
 .brand {
   display: flex;
   align-items: center;

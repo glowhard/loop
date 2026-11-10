@@ -5,6 +5,7 @@ const fsp = fs.promises;
 const path = require('path');
 const os = require('os');
 const { execFile } = require('child_process');
+const shell = require('./shell');
 
 const CLAUDE_DIR = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude');
 const PROJECTS_DIR = path.join(CLAUDE_DIR, 'projects');
@@ -29,12 +30,23 @@ async function isDir(p) {
   }
 }
 
+// Where the walk for a project folder starts, and what is left to match:
+// D--Work-app is D:\ then Work-app, -Users-me-app is / then Users-me-app.
+function rootOf(dirName, platform = process.platform) {
+  if (shell.isWin(platform)) {
+    const m = /^([A-Za-z])--(.*)$/.exec(dirName);
+
+    return m ? { root: `${m[1].toUpperCase()}:\\`, rest: m[2] } : null;
+  }
+
+  return dirName.startsWith('-') ? { root: '/', rest: dirName.slice(1) } : null;
+}
+
 // The encoding is lossy, so walk the filesystem to find the folder whose
 // encoded path matches.
 async function resolveFromDisk(dirName) {
-  const m = /^([A-Za-z])--(.*)$/.exec(dirName);
-  if (!m) return null;
-  const root = `${m[1].toUpperCase()}:\\`;
+  const start = rootOf(dirName);
+  if (!start) return null;
   const walk = async (dir, rest) => {
     if (rest === '') return dir;
     let entries;
@@ -57,7 +69,7 @@ async function resolveFromDisk(dirName) {
     }
     return null;
   };
-  return walk(root, m[2]);
+  return walk(start.root, start.rest);
 }
 
 async function resolveProjectPath(dirName, cwdHints) {
@@ -217,7 +229,7 @@ function pidAlive(pid) {
   }
 }
 
-// A session that was killed leaves its registry file behind, and Windows
+// A session that was killed leaves its registry file behind, and the system
 // reuses process ids. So a live pid is not enough: the process behind it has
 // to be Claude. Process names are looked up in one batch and cached briefly.
 let procNames = new Map();
@@ -227,13 +239,10 @@ let procNamesBusy = null;
 function refreshProcNames() {
   if (procNamesBusy) return procNamesBusy;
   procNamesBusy = new Promise((resolve) => {
-    execFile('tasklist', ['/FO', 'CSV', '/NH'], { windowsHide: true, timeout: 8000, maxBuffer: 8 * 1024 * 1024 }, (err, stdout) => {
+    const [cmd, args] = shell.processListCommand();
+    execFile(cmd, args, { windowsHide: true, timeout: 8000, maxBuffer: 8 * 1024 * 1024 }, (err, stdout) => {
       if (!err) {
-        const next = new Map();
-        for (const line of String(stdout).split(/\r?\n/)) {
-          const m = /^"([^"]+)","(\d+)"/.exec(line);
-          if (m) next.set(Number(m[2]), m[1].toLowerCase());
-        }
+        const next = shell.parseProcessList(stdout);
         if (next.size) {
           procNames = next;
           procNamesAt = Date.now();
@@ -346,4 +355,4 @@ async function peek(dirName, sessionId, opts = {}) {
   return turns.reverse();
 }
 
-module.exports = { scanProjects, readLive, isClaudePid, peek, encodePath, UUID_RE, CLAUDE_DIR };
+module.exports = { scanProjects, readLive, isClaudePid, peek, encodePath, rootOf, UUID_RE, CLAUDE_DIR };

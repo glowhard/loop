@@ -12,7 +12,7 @@ Before starting on something large, comment on the issue so no two people build 
 
 ## Set up
 
-You need Windows 10 or 11, Node 24, and the Flutter SDK (stable channel). Claude Code installed and signed in lets you try Loop on real sessions.
+You need Windows 10 or 11 or macOS (Linux should work, but is untested), Node 24, and the Flutter SDK (stable channel). Claude Code installed and signed in lets you try Loop on real sessions.
 
 ```
 git clone https://github.com/gursewak8427/loop
@@ -22,7 +22,9 @@ npm run web      # builds the phone app into src/web
 npm start        # runs Loop from source
 ```
 
-Loop keeps its settings in `%APPDATA%\Loop`. To try a change without touching your own setup, start it with a scratch folder: `set SD_USERDATA=%TEMP%\loop-dev` before `npm start`.
+Loop keeps its settings in `%APPDATA%\Loop` (`~/Library/Application Support/Loop` on macOS). To try a change without touching your own setup, start it with a scratch folder: `set SD_USERDATA=%TEMP%\loop-dev` before `npm start`, or `SD_USERDATA=/tmp/loop-dev npm start` on macOS and Linux.
+
+On macOS, `npm run pack:mac` builds an unsigned `Loop.app` into `release/`.
 
 To work on Loop without real Claude Code sessions, `npm run demo` starts it on made-up projects and sessions in a temp folder, which is removed when Loop closes. Opening a session there replays its made-up conversation; no Claude Code runs. `npm run demo -- --shot desktop.png` saves a screenshot and quits, which is how `docs/screenshots/desktop.png` is made.
 

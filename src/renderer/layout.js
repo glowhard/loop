@@ -190,13 +190,17 @@ function layoutPanes() {
 }
 
 // In an extra window the minimise, maximise and close buttons sit over the top
-// right corner, so the strip that reaches that corner keeps clear of them.
+// right corner (top left on a Mac), so the strip that reaches that corner keeps clear of them.
 function clearControls() {
   if (!S.child) return;
+
+  const mac = deck.platform === 'darwin';
+
   for (const g of groups()) {
     if (!g.strip) continue;
     const r = g.el.getBoundingClientRect();
-    g.strip.style.paddingRight = r.top < 4 && r.right > innerWidth - 4 ? '146px' : '';
+    g.strip.style.paddingRight = !mac && r.top < 4 && r.right > innerWidth - 4 ? '146px' : '';
+    g.strip.style.paddingLeft = mac && r.top < 4 && r.left < 4 ? '76px' : '';
   }
 }
 window.addEventListener('resize', clearControls);
