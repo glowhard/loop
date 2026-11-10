@@ -1,4 +1,5 @@
-// One ConPTY per open tab. Every tab is a real cmd.exe at the project root;
+// One terminal per open tab (ConPTY on Windows). Every tab is a real shell at
+// the project root: cmd.exe on Windows, the user's own shell elsewhere;
 // Claude tabs start with the claude command already typed in, so when Claude
 // exits you are left at a normal prompt in that folder.
 //
@@ -7,13 +8,18 @@
 // passes it on, and hands output back to the tab it belongs to.
 const path = require('path');
 const { UUID_RE } = require('./scanner');
+const shell = require('./shell');
 
 const tabs = new Map(); // tab id -> { wc, account, sessionId, buffer, exited }; wc is null while the tab is between windows
 let host = null;
 let ready = false;
 let backlog = [];
 
-function buildCommand(o, settings, mcpConfig) {
+// Text that goes inside double quotes on the command line. cmd acts on & | < > ^ % !;
+// a POSIX shell still expands $, ` and \ inside double quotes.
+const unsafe = (platform) => (shell.isWin(platform) ? /["&|<>^%!\r\n]/g : /["&|<>^%!\r\n$`\\]/g);
+
+function buildCommand(o, settings, mcpConfig, platform = process.platform) {
   if (o.remoteCommand) return o.remoteCommand; // a tab on a server: set by the main process, never by the page
   if (o.kind === 'shell') return null;
   if (o.kind === 'login') return `${settings.claudeCmd || 'claude'} auth login`;
@@ -22,21 +28,21 @@ function buildCommand(o, settings, mcpConfig) {
   if (settings.flags) parts.push(settings.flags);
   if (mcpConfig) parts.push('--mcp-config', `"${mcpConfig}"`);
   if (o.remote) {
-    const label = (o.title || o.name || '').replace(/["&|<>^%!\r\n]/g, '').trim();
+    const label = (o.title || o.name || '').replace(unsafe(platform), '').trim();
     parts.push('--remote-control', `"${label || 'Loop'}"`);
   }
   // What the session must know about its team from its first moment, as one safe line.
   const brief = String(o.teamBrief || '')
     .replace(/\s*\n+\s*/g, ' ')
     .replace(/"/g, "'")
-    .replace(/[&|<>^%!\r]/g, '')
+    .replace(unsafe(platform), '')
     .slice(0, 3800)
     .trim();
   if (brief) parts.push('--append-system-prompt', `"${brief}"`);
   if (o.kind === 'resume') parts.push('--resume', o.sessionId);
   else {
     parts.push('--session-id', o.sessionId);
-    const name = (o.name || '').replace(/["&|<>^%!\r\n]/g, '').trim();
+    const name = (o.name || '').replace(unsafe(platform), '').trim();
     if (name) parts.push('-n', `"${name}"`);
   }
   return parts.join(' ');

@@ -2,6 +2,7 @@
 // of output or a slow resize can each hold a thread for a while; here that
 // costs the window nothing, because the window lives in another process.
 const pty = require('@lydell/node-pty');
+const shell = require('./shell');
 
 // If the app itself was started from inside a Claude Code session, these
 // would make the sessions we launch think they are its children.
@@ -23,18 +24,22 @@ function open(o) {
   if (ptys.has(o.id)) return;
   const env = { ...process.env, ...o.env };
   for (const k of INHERITED) delete env[k];
+  // Started with npm start, npm's own settings would follow into every terminal,
+  // where nvm, for one, refuses to load.
+  for (const k of Object.keys(env)) if (/^npm_/i.test(k)) delete env[k];
   // A NO_COLOR left in the environment the app was started from would turn every
   // session black and white. These terminals always do full colour.
   delete env.NO_COLOR;
   delete env.FORCE_COLOR;
   env.COLORTERM = 'truecolor';
-  // The command travels in a variable that cmd expands itself. With the full
+  // The command travels in a variable that the shell expands itself. With the full
   // command on cmd's own command line, Windows held the launch for up to five
   // seconds per session while it checked a command line it had never seen; a
   // fixed command line is let through at once.
-  // /s makes cmd strip exactly the outer quotes, so quoted paths inside survive.
   if (o.command) env.SESSION_DECK_RUN = o.command;
-  const proc = pty.spawn(process.env.ComSpec || 'cmd.exe', o.command ? `/s ${o.once ? '/c' : '/k'} "%SESSION_DECK_RUN%"` : [], {
+  const { file, args } = shell.terminal(o.command, o.once, env);
+  if (!shell.isWin()) env.SHELL = env.SHELL || file;
+  const proc = pty.spawn(file, args, {
     name: 'xterm-256color',
     cols: Math.max(20, o.cols || 120),
     rows: Math.max(5, o.rows || 30),
@@ -70,11 +75,8 @@ function kill(id, force) {
   if (!e) return;
   ptys.delete(id);
   try {
-    if (force && process.platform === 'win32' && e.proc.pid) {
-      require('child_process').execFile('taskkill', ['/F', '/T', '/PID', String(e.proc.pid)], () => {});
-    } else {
-      e.proc.kill(force ? 'SIGKILL' : undefined);
-    }
+    if (force && e.proc.pid) shell.killTree(e.proc.pid);
+    else e.proc.kill();
   } catch {
     // already gone
   }

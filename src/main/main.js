@@ -19,8 +19,16 @@ const direct = require('./direct');
 const relay = require('./relay');
 const localTools = require('./localtools');
 const whatsapp = require('./whatsapp');
+const shellOf = require('./shell');
 
 if (process.env.SD_USERDATA) app.setPath('userData', process.env.SD_USERDATA);
+
+// Opened from the Dock or a desktop menu, the app has a bare PATH and would not
+// find claude. Started from a terminal, it already has the user's own.
+if (app.isPackaged && !shellOf.isWin()) {
+  const loginPath = shellOf.loginPath();
+  if (loginPath) process.env.PATH = loginPath;
+}
 
 // The app used to be called Session Deck. Carry its settings, memory and accounts
 // over to the new name the first time, before anything opens them.
@@ -296,6 +304,7 @@ function createWindow() {
     icon: fs.existsSync(ICON) ? ICON : undefined,
     titleBarStyle: 'hidden',
     titleBarOverlay: { color: '#141e27', symbolColor: '#93a6b5', height: 40 },
+    trafficLightPosition: { x: 14, y: 13 }, // macOS: the window buttons, centred in the title bar
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -359,6 +368,7 @@ function createChild(specs, x, y) {
     icon: fs.existsSync(ICON) ? ICON : undefined,
     titleBarStyle: 'hidden',
     titleBarOverlay: { color: '#141e27', symbolColor: '#93a6b5', height: 36 }, // the height of a tab strip, which is all the chrome it has
+    trafficLightPosition: { x: 12, y: 11 },
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, sandbox: true, spellcheck: false, backgroundThrottling: false },
   });
   const wc = child.webContents;
@@ -744,8 +754,8 @@ function registerIpc() {
     try {
       if (!(await isClaudePid(hit.pid))) return false; // the pid now belongs to something else
       // Asking it to go, or insisting: insisting takes whatever it started too.
-      if (force && process.platform === 'win32') require('child_process').execFile('taskkill', ['/F', '/T', '/PID', String(hit.pid)], () => {});
-      else process.kill(hit.pid, force ? 'SIGKILL' : undefined);
+      if (force) shellOf.killTree(hit.pid);
+      else process.kill(hit.pid);
     } catch {
       return false;
     }
@@ -814,7 +824,8 @@ if (!app.requestSingleInstanceLock()) {
 } else {
   app.on('second-instance', showWindow);
   app.whenReady().then(async () => {
-    Menu.setApplicationMenu(null);
+    // macOS reads copy, paste and quit from the menu, so it keeps a minimal one.
+    Menu.setApplicationMenu(process.platform === 'darwin' ? Menu.buildFromTemplate([{ role: 'appMenu' }, { role: 'editMenu' }, { role: 'windowMenu' }]) : null);
     config = loadConfig();
     app.setAppUserModelId('com.prismaple.loop');
     memory.setProfileLookup((id) => ({

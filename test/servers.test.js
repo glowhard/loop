@@ -7,7 +7,7 @@ const server = { id: 'vps1', name: 'Build box', host: '203.0.113.10', user: 'dep
 const settings = { flags: '--dangerously-skip-permissions' };
 
 test('a server tab runs Claude inside tmux so it outlives the connection', () => {
-  const cmd = servers.tabCommand(server, { kind: 'resume', cwd: '/home/deploy/app', sessionId: id }, settings);
+  const cmd = servers.tabCommand(server, { kind: 'resume', cwd: '/home/deploy/app', sessionId: id }, settings, 'win32');
   assert.match(cmd, /ssh(\.exe")? -t /);
   assert.match(cmd, / -p 2222 -i C:\keys\id_ed25519 -o IdentitiesOnly=yes deploy@203\.0\.113\.10 "/);
   assert.ok(cmd.includes("cd '/home/deploy/app' || { echo; echo That folder does not exist on the server.; sleep 4; exit 1; }; "));
@@ -21,7 +21,7 @@ test('a server tab runs Claude inside tmux so it outlives the connection', () =>
 });
 
 test('as root, the flag Claude Code refuses for root is left out, not worked around', () => {
-  const cmd = servers.tabCommand({ ...server, id: 'r1', user: 'root' }, { kind: 'resume', cwd: '/root/app', sessionId: id }, settings);
+  const cmd = servers.tabCommand({ ...server, id: 'r1', user: 'root' }, { kind: 'resume', cwd: '/root/app', sessionId: id }, settings, 'win32');
   assert.ok(!cmd.includes('--dangerously-skip-permissions'));
   assert.ok(!cmd.includes('IS_SANDBOX'));
   assert.ok(cmd.includes(`'claude --resume ${id} || {`));
@@ -33,16 +33,41 @@ test('names and folders cannot smuggle commands onto the server', () => {
   assert.ok(!cmd.includes('api"'));
   assert.ok(!/[`$]\(|"; rm/.test(cmd));
   // a folder with a quote in it is not used at all
-  const odd = servers.tabCommand(server, { kind: 'shell', cwd: "/srv/it's" }, settings);
+  const odd = servers.tabCommand(server, { kind: 'shell', cwd: "/srv/it's" }, settings, 'win32');
   assert.ok(!odd.includes("it's"));
-  assert.throws(() => servers.tabCommand(server, { kind: 'resume', sessionId: 'nope' }, settings));
+  assert.throws(() => servers.tabCommand(server, { kind: 'resume', sessionId: 'nope' }, settings, 'win32'));
 });
 
 test('plain terminal and sign-in tabs', () => {
-  assert.ok(servers.tabCommand(server, { kind: 'shell' }, settings).endsWith('deploy@203.0.113.10'));
-  assert.match(servers.tabCommand(server, { kind: 'shell', cwd: '/srv/app' }, settings), /"cd '\/srv\/app' 2>\/dev\/null; exec \$SHELL -l"$/);
-  assert.match(servers.tabCommand(server, { kind: 'login' }, settings), /; claude auth login"$/);
-  assert.match(servers.tabCommand(server, { kind: 'install' }, settings), /curl -fsSL https:\/\/claude\.ai\/install\.sh \| bash; /);
+  assert.ok(servers.tabCommand(server, { kind: 'shell' }, settings, 'win32').endsWith('deploy@203.0.113.10'));
+  assert.match(servers.tabCommand(server, { kind: 'shell', cwd: '/srv/app' }, settings, 'win32'), /"cd '\/srv\/app' 2>\/dev\/null; exec \$SHELL -l"$/);
+  assert.match(servers.tabCommand(server, { kind: 'login' }, settings, 'win32'), /; claude auth login"$/);
+  assert.match(servers.tabCommand(server, { kind: 'install' }, settings, 'win32'), /curl -fsSL https:\/\/claude\.ai\/install\.sh \| bash; /);
+});
+
+test('on macOS and Linux the script for the server is single-quoted, so $ is not expanded on this machine', () => {
+  const cmd = servers.tabCommand(server, { kind: 'shell', cwd: '/srv/app' }, settings, 'darwin');
+  assert.match(cmd, / deploy@203\.0\.113\.10 'cd '\\''\/srv\/app'\\'' 2>\/dev\/null; exec \$SHELL -l'$/);
+  const as = { ...server, id: 'r2', user: 'root', runAs: 'worker' };
+  const run = servers.tabCommand(as, { kind: 'new', cwd: '/home/worker/app', sessionId: id, name: "it's" }, settings, 'linux');
+  assert.ok(!run.includes(' "if ['));
+  assert.match(run, / root@203\.0\.113\.10 'if \[ \$\(id -un\) = worker \]; then export PATH=/);
+});
+
+test('the script reaches ssh exactly as written', { skip: process.platform === 'win32' }, () => {
+  const { execFileSync } = require('child_process');
+  const as = { ...server, id: 'r2', user: 'root', runAs: 'worker' };
+  for (const o of [{ kind: 'shell', cwd: '/srv/app' }, { kind: 'login' }, { kind: 'new', cwd: '/home/worker/app', sessionId: id, name: "it's" }]) {
+    const cmd = servers.tabCommand(as, o, settings, process.platform);
+    // A stand-in for ssh that prints the last thing it was given: the script for the server.
+    const got = execFileSync('/bin/sh', ['-c', `ssh() { for a; do last=$a; done; printf %s "$last"; }; ${cmd}`], {
+      encoding: 'utf8',
+      env: { PATH: process.env.PATH },
+    });
+    const script = cmd.slice(cmd.indexOf(" '") + 2, -1).replace(/'\\''/g, "'");
+    assert.strictEqual(got, script);
+    assert.ok(got.includes('$(id -un)'));
+  }
 });
 
 test('only well-formed servers are connected to', () => {
@@ -125,7 +150,7 @@ test('only git addresses are cloned, and nothing else reaches the server shell',
 
 test('sessions can run as another user than the one that logs in', () => {
   const as = { ...server, id: 'r2', user: 'root', runAs: 'worker' };
-  const cmd = servers.tabCommand(as, { kind: 'new', cwd: '/home/worker/app', sessionId: id, name: "it's" }, settings);
+  const cmd = servers.tabCommand(as, { kind: 'new', cwd: '/home/worker/app', sessionId: id, name: "it's" }, settings, 'win32');
   // the same script three ways: already that user, through sudo, through su
   assert.match(cmd, /"if \[ \$\(id -un\) = worker \]; then export PATH=/);
   assert.match(cmd, /; elif command -v sudo >\/dev\/null 2>&1; then exec sudo -n -H -u worker sh -c 'export PATH=/);
@@ -136,8 +161,8 @@ test('sessions can run as another user than the one that logs in', () => {
   assert.ok(servers.isRoot({ ...as, runAs: 'root' }));
   assert.strictEqual((cmd.match(/"/g) || []).length % 2, 0);
   assert.ok(!/[%!]/.test(cmd));
-  assert.match(servers.tabCommand(as, { kind: 'shell' }, settings), /sudo -n -H -u worker sh -c 'cd; exec \$SHELL -l'/);
-  assert.match(servers.tabCommand(as, { kind: 'login' }, settings), /sudo -n -H -u worker sh -c 'export PATH=[^']*; claude auth login'/);
+  assert.match(servers.tabCommand(as, { kind: 'shell' }, settings, 'win32'), /sudo -n -H -u worker sh -c 'cd; exec \$SHELL -l'/);
+  assert.match(servers.tabCommand(as, { kind: 'login' }, settings, 'win32'), /sudo -n -H -u worker sh -c 'export PATH=[^']*; claude auth login'/);
   assert.strictEqual(servers.asUser(server, 'echo hi'), 'echo hi');
   // the user name is never free text
   for (const runAs of ['a b', 'x;reboot', "o'k", '-u', 'Root']) assert.ok(!servers.valid({ ...server, runAs }), runAs);
